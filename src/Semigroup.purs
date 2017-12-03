@@ -108,53 +108,69 @@ type FormError = FormError' ValidationErrors
 type FormErrors = NonEmptyList.NonEmptyList FormError
 
 --------------------------------------------------------------------------------
+-- | Newtype wrapper for a form's email field
+newtype Email = Email String
+
 -- | Validate that the field of a form is non-empty and has a valid email
 -- | address.
-validateEmail :: String -> Validation.V FormError String
-validateEmail email = Bifunctor.lmap BadEmail $
-     validateNonEmpty email
+validateEmail :: String -> Validation.V FormError Email
+validateEmail email =
+  Bifunctor.bimap BadEmail Email
+  $  validateNonEmpty email
   *> validateEmailRegex email
+
+-- | Newtype wrapper for a form's password field
+newtype Password = Password String
 
 -- | Validate that the field of a form is non-empty, has at least one special
 -- | character, and is longer than `passwordMinLength`.
-validatePassword :: String -> Validation.V FormError String
-validatePassword password = Bifunctor.lmap BadPassword $
-     validateNonEmpty password
+validatePassword :: String -> Validation.V FormError Password
+validatePassword password =
+  Bifunctor.bimap BadPassword Password
+  $  validateNonEmpty password
   *> validatePasswordRegex password
   *> validatePasswordMinLength password
 
 --------------------------------------------------------------------------------
--- | Type alias for a record that will represent our simple input form.
-type Form =
+-- | Type alias for an unvalidated version of our simple form, note how the
+-- | email and password fields are simple strings.
+type UnvalidatedForm =
   { email    :: String
   , password :: String
   }
 
+-- | Type alias for a validated version of our simple form, note how the email
+-- | and password fields are wrapped in newtypes.
+type ValidatedForm =
+  { email    :: Email
+  , password :: Password
+  }
+
 -- | Validate that a form contains a valid email and a valid password.
-validateForm :: Form -> Validation.V FormErrors Form
+validateForm :: UnvalidatedForm -> Validation.V FormErrors ValidatedForm
 validateForm {email, password} = {email: _, password: _}
   <$> (Bifunctor.lmap NonEmptyList.singleton $ validateEmail email)
   <*> (Bifunctor.lmap NonEmptyList.singleton $ validatePassword password)
 
 --------------------------------------------------------------------------------
 -- | An empty form; this will parse as invalid.
-testForm1 :: Form
+testForm1 :: UnvalidatedForm
 testForm1 = {email: "", password: ""}
 
 -- | A form with a bad email and a bad password; invalid.
-testForm2 :: Form
+testForm2 :: UnvalidatedForm
 testForm2 = {email: "bademail", password: "badpassword"}
 
 -- | A form with a good email and a bad password; invalid.
-testForm3 :: Form
+testForm3 :: UnvalidatedForm
 testForm3 = {email: "good@email.com", password: "badpassword"}
 
 -- | A form with a good email and a password that is too short; invalid.
-testForm4 :: Form
+testForm4 :: UnvalidatedForm
 testForm4 = {email: "good@email.com", password: "abc123+"}
 
 -- | A form with a good email and a good password; valid.
-testForm5 :: Form
+testForm5 :: UnvalidatedForm
 testForm5 = {email: "good@email.com", password: "abc123+-="}
 
 --------------------------------------------------------------------------------

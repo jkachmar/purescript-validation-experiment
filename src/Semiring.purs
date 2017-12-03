@@ -127,75 +127,93 @@ type FormError = FormError' ValidationErrors
 type FormErrors = Semiring.Free.Free (FormError' ValidationErrors)
 
 --------------------------------------------------------------------------------
+-- | Sum type representing a form's possible contact information.
+data Contact
+  = Email String
+  | PhoneNumber String
+
 -- | Validate that the field of a form is non-empty and has a valid email
 -- | address.
-validateEmail :: String -> Validation.V ValidationErrors String
+validateEmail :: String -> Validation.V ValidationErrors Contact
 validateEmail email =
-     validateNonEmpty email
+  map Email
+  $  validateNonEmpty email
   *> validateEmailRegex email
 
 -- | Validate that the field of a form is non-empty and has a valid phone
 -- | number.
-validatePhoneNumber :: String -> Validation.V ValidationErrors String
+validatePhoneNumber :: String -> Validation.V ValidationErrors Contact
 validatePhoneNumber phoneNumber =
-     validateNonEmpty phoneNumber
+  map PhoneNumber
+  $  validateNonEmpty phoneNumber
   *> validatePhoneNumberRegex phoneNumber
 
 -- | Validate that the field of a form is non-empty and has EITHER a valid email
 -- | address OR a valid phone number.
-validateContact :: String -> Validation.V FormError String
+validateContact :: String -> Validation.V FormError Contact
 validateContact contact = Bifunctor.lmap BadContact $
   (validateEmail contact <|> validatePhoneNumber contact)
 
+-- | Newtype wrapper for a form's password field
+newtype Password = Password String
+
 -- | Validate that the field of a form is non-empty, has at least one special
 -- | character, and is longer than `passwordMinLength`.
-validatePassword :: String -> Validation.V FormError String
+validatePassword :: String -> Validation.V FormError Password
 validatePassword password =
-  Bifunctor.lmap BadPassword
+  Bifunctor.bimap BadPassword Password
   $  validateNonEmpty password
   *> validatePasswordRegex password
   *> validatePasswordMinLength password
 
 --------------------------------------------------------------------------------
--- | Type alias for a record that will represent our simple input form.
-type Form =
+-- | Type alias for an unvalidated version of our simple form, note how the
+-- | email and password fields are simple strings.
+type UnvalidatedForm =
   { contact  :: String
   , password :: String
   }
 
+-- | Type alias for a validated version of our simple form, note how the email
+-- | and password fields are wrapped in newtypes.
+type ValidatedForm =
+  { contact  :: Contact
+  , password :: Password
+  }
+
 -- | Validate that a form contains a valid email and a valid password.
-validateForm :: Form -> Validation.V FormErrors Form
+validateForm :: UnvalidatedForm -> Validation.V FormErrors ValidatedForm
 validateForm {contact, password} = {contact: _, password: _}
   <$> (Bifunctor.lmap Semiring.Free.free $ validateContact contact)
   <*> (Bifunctor.lmap Semiring.Free.free $ validatePassword password)
 
 --------------------------------------------------------------------------------
 -- | An empty form; this will parse as invalid.
-testForm1 :: Form
+testForm1 :: UnvalidatedForm
 testForm1 = {contact: "", password: ""}
 
 -- | A form with a bad email and a bad password; invalid.
-testForm2 :: Form
+testForm2 :: UnvalidatedForm
 testForm2 = {contact: "bademail", password: "badpassword"}
 
 -- | A form with a good email and a bad password; invalid.
-testForm3 :: Form
+testForm3 :: UnvalidatedForm
 testForm3 = {contact: "good@email.com", password: "badpassword"}
 
 -- | A form with a good email and a password that is too short; invalid.
-testForm4 :: Form
+testForm4 :: UnvalidatedForm
 testForm4 = {contact: "good@email.com", password: "abc123+"}
 
 -- | A form with a bad phone number and a good password; invalid.
-testForm5 :: Form
+testForm5 :: UnvalidatedForm
 testForm5 = {contact: "55-5555", password: "abc123+-="}
 
 -- | A form with a good email and a good password; valid.
-testForm6 :: Form
+testForm6 :: UnvalidatedForm
 testForm6 = {contact: "good@email.com", password: "abc123+-="}
 
 -- | A form with a good phone number and a good password; valid.
-testForm7 :: Form
+testForm7 :: UnvalidatedForm
 testForm7 = {contact: "+1 (555) 555-5555", password: "abc123+-="}
 
 --------------------------------------------------------------------------------

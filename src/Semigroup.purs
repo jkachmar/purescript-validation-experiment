@@ -86,23 +86,23 @@ validatePasswordMinLength password
 --------------------------------------------------------------------------------
 -- | Sum type containing errors we could potentially encounter while validating
 -- | the form.
-data FormError' a
+data FormErrorF a
   = BadEmail a
   | BadPassword a
 
--- | Derive a `Functor` instance for `FormError'` so we can `map` into it.
-derive instance functorFormError :: Functor FormError'
+-- | Derive a `Functor` instance for `FormErrorF` so we can `map` into it.
+derive instance functorFormErrorF :: Functor FormErrorF
 
--- | Derive a `Generic` instance for `FormError'` so we can get a
+-- | Derive a `Generic` instance for `FormErrorF` so we can get a
 -- | `Show` instance to print to the console.
-derive instance genericFormError :: Generic.Generic (FormError' a) _
+derive instance genericFormErrorF :: Generic.Generic (FormErrorF a) _
 
--- | Derive `show` for `FormError'` using the `Generic` instance.
-instance showFormError :: Show a => Show (FormError' a) where
+-- | Derive `show` for `FormErrorF` using the `Generic` instance.
+instance showFormErrorF :: Show a => Show (FormErrorF a) where
   show = Generic.Show.genericShow
 
 -- | Type alias for a simple `FormError`, containing only `ValidationErrors`.
-type FormError = FormError' ValidationErrors
+type FormError = FormErrorF ValidationErrors
 
 -- | Type alias for a non-empty list of `FormError`s.
 type FormErrors = NonEmptyList.NonEmptyList FormError
@@ -174,22 +174,24 @@ testForm5 :: UnvalidatedForm
 testForm5 = {email: "good@email.com", password: "abc123+-="}
 
 --------------------------------------------------------------------------------
+-- | Run a form validation against all of the test forms we created, formatting
+-- | the output and printing it to the console.
 main :: ∀ e. Eff.Eff (console :: Eff.Console.CONSOLE | e) Unit
 main = do
-  -- > Invalid [(BadEmail [EmptyField,InvalidEmailAddress]),(BadPassword [EmptyField,NoSpecialCharacter,LessThanMinLength])]
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm1
+  -- >(Invalid [(BadEmail [EmptyField,InvalidEmailAddress]),(BadPassword [EmptyField,NoSpecialCharacter,LessThanMinLength])])
 
-  -- > Invalid [(BadEmail [InvalidEmailAddress]),(BadPassword [NoSpecialCharacter])]
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm2
+  -- > (Invalid [(BadEmail [InvalidEmailAddress]),(BadPassword [NoSpecialCharacter])])
 
-  -- > Invalid [(BadPassword [NoSpecialCharacter])]
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm3
+  -- > (Invalid [(BadPassword [NoSpecialCharacter])])
 
-  -- > Invalid [(BadPassword [LessThanMinLength])]
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm4
+  -- > (Invalid [(BadPassword [LessThanMinLength])])
 
-  -- > Valid "{\"email\":\"good@email.com\",\"password\":\"abc123+-=\"}"
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm5
+  -- > (Valid "{\"email\":\"good@email.com\",\"password\":\"abc123+-=\"}")
 
   where
     -- Format the output of our validator.

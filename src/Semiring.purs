@@ -104,27 +104,27 @@ validatePhoneNumberRegex phoneNumber
 --------------------------------------------------------------------------------
 -- | Sum type containing errors we could potentially encounter while validating
 -- | the form.
-data FormError' a
+data FormErrorF a
   = BadContact a
   | BadPassword a
 
--- | Derive a `Functor` instance for `FormError'` so we can `map` into it.
-derive instance functorFormError :: Functor FormError'
+-- | Derive a `Functor` instance for `FormErrorF` so we can `map` into it.
+derive instance functorFormErrorF :: Functor FormErrorF
 
--- | Derive a `Generic` instance for `FormError'` so we can get a
+-- | Derive a `Generic` instance for `FormErrorF` so we can get a
 -- | `Show` instance to print to the console.
-derive instance genericFormError :: Generic.Generic (FormError' a) _
+derive instance genericFormErrorF :: Generic.Generic (FormErrorF a) _
 
 -- | Derive `show` for `FormError'` using the `Generic` instance.
-instance showFormError :: Show a => Show (FormError' a) where
+instance showFormErrorF :: Show a => Show (FormErrorF a) where
   show = Generic.Show.genericShow
 
 -- | Type alias for a simple `FormError`, containing only `ValidationErrors`.
-type FormError = FormError' ValidationErrors
+type FormError = FormErrorF ValidationErrors
 
 -- | Type alias for a free semiring of `FormError`s, giving us both
 -- | `Applicative` and `Alternative` instances for validation.
-type FormErrors = Semiring.Free.Free (FormError' ValidationErrors)
+type FormErrors = Semiring.Free.Free (FormErrorF ValidationErrors)
 
 --------------------------------------------------------------------------------
 -- | Sum type representing a form's possible contact information.
@@ -217,36 +217,40 @@ testForm7 :: UnvalidatedForm
 testForm7 = {contact: "+1 (555) 555-5555", password: "abc123+-="}
 
 --------------------------------------------------------------------------------
+-- | Run a form validation against all of the test forms we created, formatting
+-- | the output and printing it to the console.
 main :: ∀ e. Eff.Eff (console :: Eff.Console.CONSOLE | e) Unit
 main = do
-  -- > Invalid ([(BadContact [EmptyField,InvalidEmailAddress,InvalidPhoneNumber]),(BadPassword [EmptyField,NoSpecialCharacter,LessThanMinLength])])
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm1
+  -- > Invalid ([(BadContact [EmptyField,InvalidEmailAddress,InvalidPhoneNumber]),(BadPassword [EmptyField,NoSpecialCharacter,LessThanMinLength])])
 
-  -- > Invalid ([(BadContact [InvalidEmailAddress,InvalidPhoneNumber]),(BadPassword [NoSpecialCharacter])])
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm2
+  -- > Invalid ([(BadContact [InvalidEmailAddress,InvalidPhoneNumber]),(BadPassword [NoSpecialCharacter])])
 
-  -- > Invalid ([(BadPassword [NoSpecialCharacter])])
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm3
+  -- > Invalid ([(BadPassword [NoSpecialCharacter])])
 
-  -- >Invalid ([(BadPassword [LessThanMinLength])])
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm4
+  -- > Invalid ([(BadPassword [LessThanMinLength])])
 
-  -- > Invalid ([(BadContact [InvalidEmailAddress,InvalidPhoneNumber])])
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm5
+  -- > Invalid ([(BadContact [InvalidEmailAddress,InvalidPhoneNumber])])
 
-  -- > Valid ("{\"contact\":\"good@email.com\",\"password\":\"abc123+-=\"}")
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm6
+  -- > Valid ("{\"contact\":{\"value0\":\"good@email.com\"},\"password\":\"abc123+-=\"}")
+  -- NOTE: The `value0` here is an unsafe stringification of the `Contact` type
 
-  -- > Valid ("{\"contact\":\"+1 (555) 555-5555\",\"password\":\"abc123+-=\"}")
   Eff.Console.logShow $ formatValidationOutput $ validateForm testForm7
+  -- > Valid ("{\"contact\":{\"value0\":\"+1 (555) 555-5555\"},\"password\":\"abc123+-=\"}")
+  -- NOTE: The `value0` here is an unsafe stringification of the `Contact` type
 
   where
     -- Format the output of our validator.
     formatValidationOutput =
       Bifunctor.bimap
-      -- Convert the Free Semiring of `ValidationError` to an `Array`, eliminate any
-      -- duplicate validation errors, and convert the `NonEmptyList` of `FormError`s
-      -- to an `Array` too for easier printing
+      -- Convert the Free Semiring of `ValidationError` to an `Array`, eliminate
+      -- any duplicate validation errors, and convert the `NonEmptyList` of
+      -- `FormError`s to an `Array` too for easier printing
       (Array.fromFoldable <<< ((map <<< map) (Array.nub <<< Array.fromFoldable)))
       -- Unsafe stringify the record, in lieu of a `Show` instance.
       (Unsafe.Global.unsafeStringify)
